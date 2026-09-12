@@ -1,0 +1,114 @@
+{
+  "title": "IQA — Indoor air quality index",
+  "config": {
+    "step": {
+      "user": {
+        "title": "IQA — Indoor air quality index",
+        "description": "Pick your sensors. Only temperature and humidity are required: the weight of any missing optional sensor is redistributed over the rest.",
+        "data": {
+          "name": "Name",
+          "room": "Room type",
+          "temperature": "Temperature",
+          "humidity": "Humidity",
+          "co2": "CO₂",
+          "pm25": "PM2.5",
+          "voc": "VOC",
+          "voc_unit": "VOC unit",
+          "nox": "NOx",
+          "nox_unit": "NOx unit",
+          "pm1": "PM1",
+          "pm4": "PM4",
+          "pm10": "PM10",
+          "worst_sensor": "Create a “worst factor” entity"
+        },
+        "data_description": {
+          "room": "The threshold profile used for the calculation — not necessarily where the sensor physically sits. An underground garage behaves like a cellar: pick “Basement / Utility room”.",
+          "temperature": "Required. If this sensor becomes unavailable, the IQA entity does too, rather than publishing a plausible but wrong score.",
+          "humidity": "Required, for the same reason as temperature.",
+          "co2": "Optional. Weighted 30 % — the heaviest, alongside PM2.5.",
+          "pm25": "Optional. The only particulate fraction counted in the score.",
+          "voc": "Optional. The list is not filtered by device class: in index mode, Sensirion sensors declare none.",
+          "voc_unit": "Sensirion index 1-500, or concentration in µg/m³.",
+          "nox": "Optional. Unfiltered list, same as VOC.",
+          "nox_unit": "Sensirion index 1-500, or NO₂ concentration in µg/m³.",
+          "pm1": "Optional, display only: nearly redundant with PM2.5.",
+          "pm4": "Optional, display only: extrapolated by the sensor, not measured.",
+          "pm10": "Optional, display only: extrapolated by the sensor, not measured.",
+          "worst_sensor": "A second entity whose state is directly the factor limiting the score, so automations don't have to parse the “detail” attribute."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Change the sensors or the room profile.",
+        "data": {
+          "room": "Room type",
+          "temperature": "Temperature",
+          "humidity": "Humidity",
+          "co2": "CO₂",
+          "pm25": "PM2.5",
+          "voc": "VOC",
+          "voc_unit": "VOC unit",
+          "nox": "NOx",
+          "nox_unit": "NOx unit",
+          "pm1": "PM1",
+          "pm4": "PM4",
+          "pm10": "PM10",
+          "worst_sensor": "Create a “worst factor” entity"
+        },
+        "data_description": {
+          "room": "The threshold profile used for the calculation — not necessarily where the sensor physically sits. An underground garage behaves like a cellar: pick “Basement / Utility room”.",
+          "temperature": "Required. If this sensor becomes unavailable, the IQA entity does too, rather than publishing a plausible but wrong score.",
+          "humidity": "Required, for the same reason as temperature.",
+          "co2": "Optional. Weighted 30 % — the heaviest, alongside PM2.5.",
+          "pm25": "Optional. The only particulate fraction counted in the score.",
+          "voc": "Optional. The list is not filtered by device class: in index mode, Sensirion sensors declare none.",
+          "voc_unit": "Sensirion index 1-500, or concentration in µg/m³.",
+          "nox": "Optional. Unfiltered list, same as VOC.",
+          "nox_unit": "Sensirion index 1-500, or NO₂ concentration in µg/m³.",
+          "pm1": "Optional, display only: nearly redundant with PM2.5.",
+          "pm4": "Optional, display only: extrapolated by the sensor, not measured.",
+          "pm10": "Optional, display only: extrapolated by the sensor, not measured.",
+          "worst_sensor": "A second entity whose state is directly the factor limiting the score, so automations don't have to parse the “detail” attribute."
+        }
+      }
+    }
+  },
+  "selector": {
+    "room": {
+      "options": {
+        "bedroom": "Bedroom",
+        "living_room": "Living room",
+        "office": "Office",
+        "kitchen": "Kitchen",
+        "bathroom": "Bathroom",
+        "basement": "Basement / Utility room",
+        "garage": "Garage",
+        "attic": "Attic"
+      }
+    },
+    "unit": {
+      "options": {
+        "index": "Sensirion index (unitless)",
+        "concentration": "Concentration (µg/m³)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "worst_factor": {
+        "state": {
+          "none": "None",
+          "temp": "Temperature",
+          "humidity": "Humidity",
+          "co2": "CO₂",
+          "voc": "VOC",
+          "nox": "NOx",
+          "pm25": "PM2.5"
+        }
+      }
+    }
+  }
+}
