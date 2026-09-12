@@ -1,0 +1,211 @@
+{#-
+  IQA — Indice de Qualité de l'Air pour Home Assistant
+  Copyright (C) 2026 rivland
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+-#}
+
+{#- ── Moteur : mode='score' → entier 0-100, mode='detail' → JSON ────────── -#}
+{%- macro _iqa(room, temperature, humidity, co2, voc, nox, pm1, pm25, pm4, pm10, voc_unit, nox_unit, mode) -%}
+
+{%- set CAP_MARGIN  = 20 -%}
+{%- set CAP_COMFORT = 25 -%}
+
+{%- set rooms = {
+  'bedroom':     {'label': 'Chambre',           'tmin': 18, 'tmax': 20, 'tspan': 10, 'hmin': 40, 'hmax': 60, 'co2t': 0.9, 'pm': 1.0, 'voc': 1.0, 'nox': 1.0},
+  'living_room': {'label': 'Salon / Séjour',    'tmin': 19, 'tmax': 22, 'tspan': 10, 'hmin': 40, 'hmax': 60, 'co2t': 1.0, 'pm': 1.0, 'voc': 1.0, 'nox': 1.0},
+  'office':      {'label': 'Bureau',            'tmin': 20, 'tmax': 23, 'tspan': 10, 'hmin': 40, 'hmax': 60, 'co2t': 0.9, 'pm': 1.0, 'voc': 1.0, 'nox': 1.0},
+  'kitchen':     {'label': 'Cuisine',           'tmin': 19, 'tmax': 22, 'tspan': 10, 'hmin': 40, 'hmax': 60, 'co2t': 1.0, 'pm': 2.0, 'voc': 1.5, 'nox': 1.5},
+  'bathroom':    {'label': 'Salle de bain',     'tmin': 22, 'tmax': 24, 'tspan': 10, 'hmin': 50, 'hmax': 60, 'co2t': 1.0, 'pm': 1.0, 'voc': 1.0, 'nox': 1.0},
+  'basement':    {'label': 'Cave / Buanderie',  'tmin': 16, 'tmax': 20, 'tspan': 10, 'hmin': 45, 'hmax': 65, 'co2t': 1.0, 'pm': 1.0, 'voc': 1.0, 'nox': 1.0},
+  'garage':      {'label': 'Garage',            'tmin': 5,  'tmax': 25, 'tspan': 25, 'hmin': 35, 'hmax': 70, 'co2t': 1.2, 'pm': 2.0, 'voc': 2.0, 'nox': 2.0},
+  'attic':       {'label': 'Combles',           'tmin': 10, 'tmax': 28, 'tspan': 20, 'hmin': 35, 'hmax': 60, 'co2t': 1.0, 'pm': 1.2, 'voc': 1.2, 'nox': 1.0}
+} -%}
+{%- set r = rooms.get(room, rooms['living_room']) -%}
+
+{%- set voc_is_index = (voc_unit | default('index', true) | lower) != 'concentration' -%}
+{%- set nox_is_index = (nox_unit | default('index', true) | lower) != 'concentration' -%}
+
+{%- set t    = states(temperature) | float(default=none) if temperature else none -%}
+{%- set h    = states(humidity)    | float(default=none) if humidity    else none -%}
+{%- set vco2 = states(co2)         | float(default=none) if co2         else none -%}
+{%- set vvoc = states(voc)         | float(default=none) if voc         else none -%}
+{%- set vnox = states(nox)         | float(default=none) if nox         else none -%}
+{%- set vpm1 = states(pm1)         | float(default=none) if pm1         else none -%}
+{%- set vp25 = states(pm25)        | float(default=none) if pm25        else none -%}
+{%- set vpm4 = states(pm4)         | float(default=none) if pm4         else none -%}
+{%- set vp10 = states(pm10)        | float(default=none) if pm10        else none -%}
+
+{%- set t_ideal = (r.tmin + r.tmax) / 2 -%}
+{%- set t_span  = r.tspan -%}
+{%- set t_dev = (t - t_ideal) | abs if t is not none else none -%}
+{%- set s_temp = none if t is none else (
+      100 if t_dev <= 1 else (0 if t_dev > t_span else [0, 100 - (t_dev - 1) * (100 / (t_span - 1))] | max)) -%}
+
+{%- set h_ideal = (r.hmin + r.hmax) / 2 -%}
+{%- set s_hum_raw = none if h is none else (
+      (h / 20) * 50                              if h < 20     else (
+      ((100 - h) / 20) * 50                      if h > 80     else (
+      50 + (h - 20) / (r.hmin - 20) * 50         if h < r.hmin else (
+      50 + (80 - h) / (80 - r.hmax) * 50         if h > r.hmax else 100)))) -%}
+{%- set s_hum = none if h is none else [[s_hum_raw, 0] | max, 100] | min -%}
+
+{%- set k = r.co2t -%}
+{%- set s_co2 = none if vco2 is none else (
+      100 if vco2 <=  600 * k else (
+      100 - (vco2 -  600 * k) / ( 200 * k) * 20 if vco2 <=  800 * k else (
+      80  - (vco2 -  800 * k) / ( 400 * k) * 20 if vco2 <= 1200 * k else (
+      60  - (vco2 - 1200 * k) / ( 300 * k) * 25 if vco2 <= 1500 * k else (
+      35  - (vco2 - 1500 * k) / ( 250 * k) *  7 if vco2 <= 1750 * k else (
+      28  - (vco2 - 1750 * k) / ( 450 * k) * 13 if vco2 <= 2200 * k else (
+      15  - (vco2 - 2200 * k) / ( 400 * k) * 15 if vco2 <= 2600 * k else 0))))))) -%}
+
+{%- set voc_ok  = 100 if voc_is_index else 200  * r.voc -%}
+{%- set voc_max = 400 if voc_is_index else 1000 * r.voc -%}
+{%- set s_voc = none if vvoc is none else (
+      100 if vvoc <= voc_ok else (0 if vvoc >= voc_max else
+      (voc_max - vvoc) / (voc_max - voc_ok) * 100)) -%}
+
+{%- set nox_ok  = 5   if nox_is_index else 25  * r.nox -%}
+{%- set nox_max = 100 if nox_is_index else 200 * r.nox -%}
+{%- set s_nox = none if vnox is none else (
+      100 if vnox <= nox_ok else (0 if vnox >= nox_max else
+      (nox_max - vnox) / (nox_max - nox_ok) * 100)) -%}
+
+{%- set pm = r.pm -%}
+{%- set s_p25 = none if vp25 is none else (
+      100 if vp25 <= 5 * pm else (0 if vp25 >= 35 * pm else
+      (35 * pm - vp25) / (30 * pm) * 100)) -%}
+{%- set s_pm1 = none if vpm1 is none else (
+      100 if vpm1 <= 5 * pm else (0 if vpm1 >= 35 * pm else
+      (35 * pm - vpm1) / (30 * pm) * 100)) -%}
+{%- set s_pm4 = none if vpm4 is none else (
+      100 if vpm4 <= 10 * pm else (0 if vpm4 >= 45 * pm else
+      (45 * pm - vpm4) / (35 * pm) * 100)) -%}
+{%- set s_p10 = none if vp10 is none else (
+      100 if vp10 <= 15 * pm else (0 if vp10 >= 45 * pm else
+      (45 * pm - vp10) / (30 * pm) * 100)) -%}
+
+{%- set w = namespace(temp=15, hum=10, co2=30, voc=10, nox=5, p25=30, lost=0) -%}
+{%- if s_co2 is none %}{% set w.lost = w.lost + w.co2 %}{% set w.co2 = 0 %}{% endif -%}
+{%- if s_voc is none %}{% set w.lost = w.lost + w.voc %}{% set w.voc = 0 %}{% endif -%}
+{%- if s_nox is none %}{% set w.lost = w.lost + w.nox %}{% set w.nox = 0 %}{% endif -%}
+{%- if s_p25 is none %}{% set w.lost = w.lost + w.p25 %}{% set w.p25 = 0 %}{% endif -%}
+{%- set rf = 100 / (100 - w.lost) if w.lost < 100 else 1 -%}
+
+{%- set total = namespace(v=0) -%}
+{%- if s_temp is not none %}{% set total.v = total.v + s_temp * (w.temp * rf / 100) %}{% endif -%}
+{%- if s_hum  is not none %}{% set total.v = total.v + s_hum  * (w.hum  * rf / 100) %}{% endif -%}
+{%- if s_co2  is not none %}{% set total.v = total.v + s_co2  * (w.co2  * rf / 100) %}{% endif -%}
+{%- if s_voc  is not none %}{% set total.v = total.v + s_voc  * (w.voc  * rf / 100) %}{% endif -%}
+{%- if s_nox  is not none %}{% set total.v = total.v + s_nox  * (w.nox  * rf / 100) %}{% endif -%}
+{%- if s_p25  is not none %}{% set total.v = total.v + s_p25  * (w.p25  * rf / 100) %}{% endif -%}
+
+{%- set ws = namespace(v=100, name=none) -%}
+{%- if s_hum is not none and h > r.hmax and s_hum < ws.v %}{% set ws.v = s_hum %}{% set ws.name = 'Humidité' %}{% endif -%}
+{%- if s_co2  is not none and s_co2  < ws.v %}{% set ws.v = s_co2  %}{% set ws.name = 'CO₂' %}{% endif -%}
+{%- if s_voc  is not none and s_voc  < ws.v %}{% set ws.v = s_voc  %}{% set ws.name = 'COV' %}{% endif -%}
+{%- if s_nox  is not none and s_nox  < ws.v %}{% set ws.v = s_nox  %}{% set ws.name = 'NOx' %}{% endif -%}
+{%- if s_p25  is not none and s_p25  < ws.v %}{% set ws.v = s_p25  %}{% set ws.name = 'PM2.5' %}{% endif -%}
+
+{%- set cs = namespace(v=100, name=none) -%}
+{%- if s_temp is not none and s_temp < cs.v %}{% set cs.v = s_temp %}{% set cs.name = 'Température' %}{% endif -%}
+{%- if s_hum is not none and h <= r.hmax and s_hum < cs.v %}{% set cs.v = s_hum %}{% set cs.name = 'Humidité' %}{% endif -%}
+
+{%- set cap_air  = ws.v + CAP_MARGIN -%}
+{%- set cap_conf = cs.v + CAP_COMFORT -%}
+{%- set cap = [cap_air, cap_conf] | min -%}
+{%- set is_capped = cap < total.v -%}
+{%- set cap_kind = none if not is_capped else ('aeration' if cap_air <= cap_conf else 'confort') -%}
+{%- set lim_name = ws.name if cap_air <= cap_conf else cs.name -%}
+{%- set lim_score = ws.v if cap_air <= cap_conf else cs.v -%}
+{%- set final = [[[total.v, cap] | min, 0] | max, 100] | min | round(0) | int -%}
+
+{%- if mode == 'score' -%}
+{{ final }}
+{%- else -%}
+{%- set tier_name = 'Excellent' if final >= 80 else ('Bon' if final >= 60 else ('Moyen' if final >= 40 else ('Médiocre' if final >= 20 else 'Dangereux'))) -%}
+{%- set tier_col  = '#2f7a3d' if final >= 80 else ('#8a6d1f' if final >= 60 else ('#b5651d' if final >= 40 else ('#c0392b' if final >= 20 else '#7d3aa3'))) -%}
+
+{%- set f = namespace(items=[]) -%}
+
+{%- if s_temp is not none -%}
+  {%- set hi = t > t_ideal -%}
+  {%- set suf = 'élevée' if hi else 'basse' -%}
+  {%- set lbl = 'Idéale' if s_temp >= 80 else ('Légèrement ' ~ suf if s_temp >= 60 else (('Élevée' if hi else 'Basse') if s_temp >= 40 else ('Très ' ~ suf if s_temp >= 20 else ('Excessive' if hi else 'Insuffisante')))) -%}
+  {%- set col = '#2f7a3d' if s_temp >= 80 else ('#8a6d1f' if s_temp >= 60 else ('#b5651d' if s_temp >= 40 else ('#c0392b' if s_temp >= 20 else '#7d3aa3'))) -%}
+  {%- set f.items = f.items + [{'key': 'temp', 'name': 'Température', 'value': t | round(1), 'unit': '°C', 'score': s_temp | round(1), 'label': lbl, 'color': col, 'entity': temperature, 'in_score': true}] -%}
+{%- endif -%}
+
+{%- if s_hum is not none -%}
+  {%- set hi = h > h_ideal -%}
+  {%- set suf = 'humide' if hi else 'sec' -%}
+  {%- set lbl = 'Idéale' if s_hum >= 80 else ('Légèrement ' ~ suf if s_hum >= 60 else (('Humide' if hi else 'Sec') if s_hum >= 40 else ('Très ' ~ suf if s_hum >= 20 else ('Excessive' if hi else 'Insuffisante')))) -%}
+  {%- set col = '#2f7a3d' if s_hum >= 80 else ('#8a6d1f' if s_hum >= 60 else ('#b5651d' if s_hum >= 40 else ('#c0392b' if s_hum >= 20 else '#7d3aa3'))) -%}
+  {%- set f.items = f.items + [{'key': 'humidity', 'name': 'Humidité', 'value': h | round(0) | int, 'unit': '%', 'score': s_hum | round(1), 'label': lbl, 'color': col, 'entity': humidity, 'in_score': true}] -%}
+{%- endif -%}
+
+{%- set voc_unit_lbl = '' if voc_is_index else 'µg/m³' -%}
+{%- set nox_unit_lbl = '' if nox_is_index else 'µg/m³' -%}
+{%- set specs = [
+  ('co2',  'CO₂',   'ppm',          vco2, s_co2,  co2,  true),
+  ('voc',  'COV',   voc_unit_lbl,   vvoc, s_voc,  voc,  true),
+  ('nox',  'NOx',   nox_unit_lbl,   vnox, s_nox,  nox,  true),
+  ('pm25', 'PM2.5', 'µg/m³',        vp25, s_p25,  pm25, true),
+  ('pm1',  'PM1',   'µg/m³',        vpm1, s_pm1,  pm1,  false),
+  ('pm4',  'PM4',   'µg/m³',        vpm4, s_pm4,  pm4,  false),
+  ('pm10', 'PM10',  'µg/m³',        vp10, s_p10,  pm10, false)
+] -%}
+{%- for key, nm, unit, val, sc, eid, scored in specs -%}
+  {%- if sc is not none -%}
+    {%- set lbl = 'Idéal' if sc >= 80 else ('Correct' if sc >= 60 else ('Élevé' if sc >= 40 else ('Très élevé' if sc >= 20 else 'Critique'))) -%}
+    {%- set col = '#2f7a3d' if sc >= 80 else ('#8a6d1f' if sc >= 60 else ('#b5651d' if sc >= 40 else ('#c0392b' if sc >= 20 else '#7d3aa3'))) -%}
+    {%- set f.items = f.items + [{'key': key, 'name': nm, 'value': val | round(1), 'unit': unit, 'score': sc | round(1), 'label': lbl, 'color': col, 'entity': eid, 'in_score': scored}] -%}
+  {%- endif -%}
+{%- endfor -%}
+
+{{ {
+  'score': final,
+  'tier': tier_name,
+  'color': tier_col,
+  'room': room,
+  'room_label': r.label,
+  'worst': lim_name,
+  'worst_score': lim_score | round(1),
+  'cap_kind': cap_kind,
+  'weighted_mean': total.v | round(1),
+  'capped': is_capped,
+  'cap_margin': CAP_MARGIN,
+  'cap_comfort': CAP_COMFORT,
+  'voc_unit': 'index' if voc_is_index else 'concentration',
+  'nox_unit': 'index' if nox_is_index else 'concentration',
+  'factors': f.items
+} | to_json }}
+{%- endif -%}
+{%- endmacro -%}
+
+
+{%- macro iqa_score(room, temperature, humidity, co2=none, voc=none, nox=none, pm1=none, pm25=none, pm4=none, pm10=none, voc_unit='index', nox_unit='index') -%}
+{{- _iqa(room, temperature, humidity, co2, voc, nox, pm1, pm25, pm4, pm10, voc_unit, nox_unit, 'score') -}}
+{%- endmacro -%}
+
+{%- macro iqa_detail(room, temperature, humidity, co2=none, voc=none, nox=none, pm1=none, pm25=none, pm4=none, pm10=none, voc_unit='index', nox_unit='index') -%}
+{{- _iqa(room, temperature, humidity, co2, voc, nox, pm1, pm25, pm4, pm10, voc_unit, nox_unit, 'detail') -}}
+{%- endmacro -%}
+
+{%- macro iqa_available(temperature, humidity) -%}
+{{- (states(temperature) | float(default=none)) is not none
+  and (states(humidity) | float(default=none)) is not none -}}
+{%- endmacro -%}
