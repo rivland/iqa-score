@@ -1,0 +1,114 @@
+{
+  "title": "IQA — Indice de qualité de l'air",
+  "config": {
+    "step": {
+      "user": {
+        "title": "IQA — Indice de qualité de l'air",
+        "description": "Choisissez vos capteurs. Seules la température et l'humidité sont obligatoires : le poids des autres est redistribué s'ils manquent.",
+        "data": {
+          "name": "Nom",
+          "room": "Type de pièce",
+          "temperature": "Température",
+          "humidity": "Humidité",
+          "co2": "CO₂",
+          "pm25": "PM2.5",
+          "voc": "COV",
+          "voc_unit": "Unité des COV",
+          "nox": "NOx",
+          "nox_unit": "Unité des NOx",
+          "pm1": "PM1",
+          "pm4": "PM4",
+          "pm10": "PM10",
+          "worst_sensor": "Créer une entité « facteur le plus pénalisant »"
+        },
+        "data_description": {
+          "room": "Le profil de seuils servant au calcul — pas nécessairement l'emplacement physique du capteur. Un garage enterré se comporte comme une cave : choisissez « Cave / Buanderie ».",
+          "temperature": "Obligatoire. Si ce capteur devient indisponible, l'entité IQA le devient aussi, plutôt que de publier un score faussement plausible.",
+          "humidity": "Obligatoire, pour la même raison que la température.",
+          "co2": "Facultatif. Poids de 30 % — le plus lourd avec les PM2.5.",
+          "pm25": "Facultatif. Seule fraction de particules comptée dans le score.",
+          "voc": "Facultatif. La liste n'est pas filtrée par classe d'appareil : en mode index, les capteurs Sensirion n'en déclarent aucune.",
+          "voc_unit": "Index Sensirion 1-500, ou concentration en µg/m³.",
+          "nox": "Facultatif. Liste non filtrée, comme pour les COV.",
+          "nox_unit": "Index Sensirion 1-500, ou concentration NO₂ en µg/m³.",
+          "pm1": "Facultatif, affiché seul : quasi redondant avec les PM2.5.",
+          "pm4": "Facultatif, affiché seul : extrapolé par le capteur, non mesuré.",
+          "pm10": "Facultatif, affiché seul : extrapolé par le capteur, non mesuré.",
+          "worst_sensor": "Une seconde entité dont l'état est directement le facteur qui limite le score, pour écrire des automatisations sans analyser l'attribut « detail »."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Modifiez les capteurs ou le profil de pièce.",
+        "data": {
+          "room": "Type de pièce",
+          "temperature": "Température",
+          "humidity": "Humidité",
+          "co2": "CO₂",
+          "pm25": "PM2.5",
+          "voc": "COV",
+          "voc_unit": "Unité des COV",
+          "nox": "NOx",
+          "nox_unit": "Unité des NOx",
+          "pm1": "PM1",
+          "pm4": "PM4",
+          "pm10": "PM10",
+          "worst_sensor": "Créer une entité « facteur le plus pénalisant »"
+        },
+        "data_description": {
+          "room": "Le profil de seuils servant au calcul — pas nécessairement l'emplacement physique du capteur. Un garage enterré se comporte comme une cave : choisissez « Cave / Buanderie ».",
+          "temperature": "Obligatoire. Si ce capteur devient indisponible, l'entité IQA le devient aussi, plutôt que de publier un score faussement plausible.",
+          "humidity": "Obligatoire, pour la même raison que la température.",
+          "co2": "Facultatif. Poids de 30 % — le plus lourd avec les PM2.5.",
+          "pm25": "Facultatif. Seule fraction de particules comptée dans le score.",
+          "voc": "Facultatif. La liste n'est pas filtrée par classe d'appareil : en mode index, les capteurs Sensirion n'en déclarent aucune.",
+          "voc_unit": "Index Sensirion 1-500, ou concentration en µg/m³.",
+          "nox": "Facultatif. Liste non filtrée, comme pour les COV.",
+          "nox_unit": "Index Sensirion 1-500, ou concentration NO₂ en µg/m³.",
+          "pm1": "Facultatif, affiché seul : quasi redondant avec les PM2.5.",
+          "pm4": "Facultatif, affiché seul : extrapolé par le capteur, non mesuré.",
+          "pm10": "Facultatif, affiché seul : extrapolé par le capteur, non mesuré.",
+          "worst_sensor": "Une seconde entité dont l'état est directement le facteur qui limite le score, pour écrire des automatisations sans analyser l'attribut « detail »."
+        }
+      }
+    }
+  },
+  "selector": {
+    "room": {
+      "options": {
+        "bedroom": "Chambre",
+        "living_room": "Salon / Séjour",
+        "office": "Bureau",
+        "kitchen": "Cuisine",
+        "bathroom": "Salle de bain",
+        "basement": "Cave / Buanderie",
+        "garage": "Garage",
+        "attic": "Combles"
+      }
+    },
+    "unit": {
+      "options": {
+        "index": "Index Sensirion (sans unité)",
+        "concentration": "Concentration (µg/m³)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "worst_factor": {
+        "state": {
+          "none": "Aucun",
+          "temp": "Température",
+          "humidity": "Humidité",
+          "co2": "CO₂",
+          "voc": "COV",
+          "nox": "NOx",
+          "pm25": "PM2.5"
+        }
+      }
+    }
+  }
+}
