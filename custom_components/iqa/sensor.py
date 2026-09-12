@@ -32,6 +32,7 @@ import json
 from typing import Any
 
 from homeassistant.components.sensor import (
+    ENTITY_ID_FORMAT,
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
@@ -41,6 +42,7 @@ from homeassistant.const import CONF_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util import slugify
 
 from . import engine
 from .const import (
@@ -57,6 +59,40 @@ from .const import (
     WORST_NONE,
     WORST_OPTIONS,
 )
+
+
+# Acronymes reconnus comme préfixe déjà posé par l'utilisateur : IQA en
+# français, AQI en anglais. Les deux désignent la même chose, et chacun nomme
+# ses capteurs selon sa propre habitude.
+KNOWN_PREFIXES = ("iqa", "aqi")
+
+
+def build_object_id(name: str, suffix: str = "") -> str:
+    """Fabrique la partie droite de l'entity_id, préfixée sans doublon.
+
+    Home Assistant dérive normalement l'entity_id du nom affiché : « Salon »
+    donnerait `sensor.salon`, sans rien qui rattache l'entité à l'intégration.
+    On force donc un préfixe, tout en laissant le nom affiché intact.
+
+    La règle est de ne **jamais dupliquer un préfixe déjà présent**. Quelqu'un
+    qui nomme ses capteurs « IQA Salon » obtient `sensor.iqa_salon`, pas
+    `sensor.iqa_iqa_salon`. Et celui qui préfère l'acronyme anglais garde le
+    sien : « AQI Salon » donne `sensor.aqi_salon`.
+
+    Le préfixe n'est reconnu qu'en **tête** de nom et comme **mot entier** :
+    « IQAlerte Salon » n'en contient pas, et donne bien `sensor.iqa_iqalerte_salon`.
+    Un préfixe placé en fin de nom est ignoré, « Salon IQA » donne
+    `sensor.iqa_salon_iqa` : le cas est trop marginal pour justifier une règle
+    de plus.
+
+    Les collisions ne sont pas traitées ici. Deux entrées nommées « Salon »
+    produisent le même identifiant, et c'est le registre d'entités de Home
+    Assistant qui ajoute `_2` à la seconde.
+    """
+    slug = slugify(name)
+    if not any(slug == p or slug.startswith(f"{p}_") for p in KNOWN_PREFIXES):
+        slug = f"iqa_{slug}" if slug else "iqa"
+    return f"{slug}{suffix}"
 
 
 async def async_setup_entry(
@@ -177,6 +213,11 @@ class IqaScoreSensor(IqaBaseEntity):
         super().__init__(entry)
         self._attr_name = entry.options[CONF_NAME]
         self._attr_unique_id = entry.entry_id
+        # Proposé au registre lors du premier enregistrement seulement : un
+        # entity_id déjà enregistré, ou renommé à la main, n'est jamais écrasé.
+        self.entity_id = ENTITY_ID_FORMAT.format(
+            build_object_id(entry.options[CONF_NAME])
+        )
 
     @property
     def native_value(self) -> int | None:
@@ -215,8 +256,11 @@ class IqaWorstFactorSensor(IqaBaseEntity):
 
     def __init__(self, entry: ConfigEntry) -> None:
         super().__init__(entry)
-        self._attr_name = f"{entry.options[CONF_NAME]} — facteur pénalisant"
+        self._attr_name = f"{entry.options[CONF_NAME]} : facteur pénalisant"
         self._attr_unique_id = f"{entry.entry_id}_worst"
+        self.entity_id = ENTITY_ID_FORMAT.format(
+            build_object_id(entry.options[CONF_NAME], "_facteur_penalisant")
+        )
 
     @property
     def native_value(self) -> str | None:
