@@ -1,0 +1,76 @@
+name: Validate
+
+# Cette validation tourne à chaque push, à chaque pull request, et une fois par
+# nuit. Le cron nocturne n'est pas décoratif : HACS et Home Assistant font
+# évoluer leurs exigences, et un dépôt valide aujourd'hui peut cesser de l'être
+# sans qu'une seule ligne du code ait bougé. Mieux vaut l'apprendre par un
+# e-mail de GitHub que par un utilisateur qui n'arrive plus à installer.
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+# Le strict nécessaire : lire le code. `permissions: {}` (le workflow
+# recommandé par HACS) retire TOUTES les permissions au jeton — ce qui va bien
+# sur un dépôt public, où checkout clone anonymement, mais fait échouer le
+# clonage sur un dépôt privé avec un trompeur « Repository not found ».
+permissions:
+  contents: read
+
+jobs:
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Rejoue exactement les vérifications que HACS fait à l'installation :
+      # dépôt non archivé, ressources de marque, description, hacs.json,
+      # images, issues activées, topics du dépôt.
+      - name: Validation HACS
+        uses: hacs/action@main
+        with:
+          category: integration
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Validation officielle Home Assistant du manifest.json : champs
+      # obligatoires, domaine cohérent, dépendances déclarées.
+      - name: Validation hassfest
+        uses: home-assistant/actions/hassfest@master
+
+  tests:
+    name: Tests du moteur
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install jinja2
+      # Le test différentiel est le garde-fou du projet : il échoue au moindre
+      # écart entre le moteur Python et la macro Jinja de référence.
+      - name: Équivalence Python / Jinja
+        run: python test_differentiel.py
+      - name: Cas de référence
+        run: python test_engine.py
+
+  tests-ha:
+    name: Tests avec Home Assistant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install homeassistant
+      # Ces tests montent les entités contre un hass simulé : ils vérifient le
+      # câblage entre Home Assistant et le moteur, ce que les tests précédents
+      # ne peuvent pas couvrir puisqu'ils tournent sans HA installé.
+      - name: Entités et formulaire
+        run: python test_entites.py
