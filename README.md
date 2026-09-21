@@ -33,7 +33,7 @@ toute évolution se fait des deux côtés en même temps.
 
 ## Installation
 
-1. HACS → menu ⋮ → **Custom repositories** → URL de ce dépôt, catégorie
+1. HACS → menu ⋮ → **Custom repositories** → [URL de ce dépôt](https://github.com/rivland/iqa-score), catégorie
    **Integration** → *Add*
 2. Installer, puis **redémarrer Home Assistant**
 3. *Paramètres → Appareils et services → Ajouter une intégration → IQA*
