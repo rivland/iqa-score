@@ -192,25 +192,6 @@ Les seuils s'inspirent des lignes directrices OMS 2021, de l'arrêté du
 27/12/2022 et de la norme NF EN 16798-1. Score indicatif à usage domestique :
 ce n'est **ni un calcul réglementaire certifié, ni un avis médical**.
 
-## Architecture
-
-Le moteur vit dans `custom_components/iqa/engine.py`, et **tous** ses barèmes
-dans `custom_components/iqa/const.py`, source de vérité unique.
-
-La macro Jinja `iqa.jinja` est conservée comme **solution de repli** : elle
-donne exactement le même score sans dépendre de l'intégration. Si celle-ci
-casse, le score reste calculable.
-
-Les deux implémentations sont maintenues identiques par un test automatique,
-qui les compare sur plus de 36 000 combinaisons et n'admet aucun écart. Il
-tourne à chaque modification du dépôt.
-
-```bash
-python3 test_differentiel.py   # Python et Jinja donnent le même résultat
-python3 test_engine.py         # cas de référence validés en conditions réelles
-python3 test_entites.py        # entités et formulaire (Home Assistant requis)
-```
-
 ## Licence
 
 **GNU General Public License v3.0 ou ultérieure**, Copyright (C) 2026 rivland.
